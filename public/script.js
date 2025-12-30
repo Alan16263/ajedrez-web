@@ -1,20 +1,29 @@
-const socket = io();
+let socket = null;
 
-socket.on("move", (data) => {
-  // aplicar movimiento recibido
-  aplicarMovimiento(data);
-});
+if (typeof io !== "undefined") {
+    socket = io();
 
-// cuando hagas un movimiento:
-function enviarMovimiento(move) {
-  socket.emit("move", move);
+    socket.on("move", (data) => {
+        aplicarMovimiento(data);
+    });
 }
 
+function enviarMovimiento(move) {
+    if (socket) {
+        socket.emit("move", move);
+    }
+}
+
+let piezaSeleccionada = null; // { x, y, pieza }
+let seleccionBloqueada = false;
 const tablero = document.getElementById("tablero");
 const turnoTexto = document.getElementById("turno");
 const estadoTexto = document.getElementById("estado");
 const peonesID = {};
 let animando = false;
+let tiempoBlanco = 10 * 60; // 10 minutos
+let tiempoNegro = 10 * 60;
+let intervaloReloj = null;
 const historialDiv = document.getElementById("historial");
 const nombresPiezas = {
     p: "Pawn",
@@ -90,36 +99,40 @@ function dibujarTablero() {
 }
 
 dibujarTablero();
+actualizarVistaReloj();
+iniciarReloj();
+
 
 function manejarClick(e) {
     const x = parseInt(e.currentTarget.dataset.x);
     const y = parseInt(e.currentTarget.dataset.y);
 
-    // 1️⃣ Si hay selección previa y el click es movimiento válido → mover
-    if (seleccion && esMovimientoValido(x, y)) {
-        moverPieza(x, y);
+    const pieza = estado[y][x];
+
+    // 🔒 SI YA HAY SELECCIÓN
+    if (seleccion) {
+        // ✔️ Permitir mover SOLO si es movimiento válido
+        if (esMovimientoValido(x, y)) {
+            moverPieza(x, y);
+        } else {
+            // ❌ No permitir cambiar de pieza
+            estadoTexto.textContent = "Debes mover la pieza seleccionada";
+        }
         return;
     }
 
-    const pieza = estado[y][x];
+    // 🔓 NO HAY SELECCIÓN → intentar seleccionar
 
-    // 2️⃣ Limpiar selección anterior
-    limpiarResaltados();
-    seleccion = null;
-    movimientosValidos = [];
-
-    // 3️⃣ Si no hay pieza, salir
     if (!pieza) return;
 
-    // 4️⃣ Validar turno
     const colorPieza = pieza.endsWith("b") ? "blanco" : "negro";
     if (colorPieza !== turno) return;
 
-    // 5️⃣ Seleccionar pieza
+    // Seleccionar pieza
     seleccion = { x, y, pieza };
+    limpiarResaltados();
     resaltarSeleccion(x, y);
 
-    // 6️⃣ Obtener movimientos y filtrar ilegales (jaque)
     const posibles = obtenerMovimientos(x, y, pieza);
 
     movimientosValidos = posibles.filter(m =>
@@ -130,9 +143,9 @@ function manejarClick(e) {
         )
     );
 
-    // 7️⃣ Resaltar movimientos
     resaltarMovimientos();
 }
+
 function numeroPeon(pieza, origenX) {
     return peonesID[pieza + origenX] ?? "";
 }
@@ -455,12 +468,14 @@ function moverPieza(x, y) {
         // =====================
         if (materialInsuficiente()) {
             estadoTexto.textContent = "🤝 TABLAS — Material insuficiente";
+            detenerReloj();
             finalizarTurno();
             return;
         }
 
         if (contador50 >= 100) {
             estadoTexto.textContent = "🤝 TABLAS — Regla de los 50 movimientos";
+            detenerReloj();
             finalizarTurno();
             return;
         }
@@ -472,6 +487,7 @@ function moverPieza(x, y) {
             if (esJaqueMate(turno)) {
                 estadoTexto.textContent =
                     `♚ JAQUE MATE — Ganan ${turno === "blanco" ? "Negras" : "Blancas"}`;
+                detenerReloj();
                 finalizarTurno();
                 return;
             } else {
@@ -479,12 +495,13 @@ function moverPieza(x, y) {
             }
         } else if (esAhogado(turno)) {
             estadoTexto.textContent = "🤝 TABLAS — Ahogado";
+            detenerReloj();
             finalizarTurno();
             return;
         } else {
             estadoTexto.textContent = "";
         }
-
+        
         finalizarTurno();
     });
 }
@@ -492,6 +509,8 @@ function finalizarTurno() {
     seleccion = null;
     movimientosValidos = [];
     dibujarTablero();
+    actualizarVistaReloj();
+    iniciarReloj();
     tablero.style.pointerEvents = "auto";
     animando = false;
 }
@@ -753,4 +772,66 @@ function dibujarCoordenadas() {
 
 dibujarCoordenadas();
 
+function formatearTiempo(segundos) {
+    const m = Math.floor(segundos / 60);
+    const s = segundos % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function actualizarVistaReloj() {
+    document.getElementById("tiempo-blanco").textContent =
+        formatearTiempo(tiempoBlanco);
+    document.getElementById("tiempo-negro").textContent =
+        formatearTiempo(tiempoNegro);
+
+    document.getElementById("reloj-blanco")
+        .classList.toggle("activo", turno === "blanco");
+    document.getElementById("reloj-negro")
+        .classList.toggle("activo", turno === "negro");
+}
+
+function iniciarReloj() {
+    detenerReloj();
+
+    intervaloReloj = setInterval(() => {
+        if (animando) return; // ⛔ no corre durante animaciones
+
+        if (turno === "blanco") {
+            tiempoBlanco--;
+            if (tiempoBlanco <= 0) {
+                tiempoBlanco = 0;
+                tiempoAgotado("blanco");
+            }
+        } else {
+            tiempoNegro--;
+            if (tiempoNegro <= 0) {
+                tiempoNegro = 0;
+                tiempoAgotado("negro");
+            }
+        }
+
+        actualizarVistaReloj();
+    }, 1000);
+}
+
+function detenerReloj() {
+    if (intervaloReloj) {
+        clearInterval(intervaloReloj);
+        intervaloReloj = null;
+    }
+}
+
+
+function tiempoAgotado(color) {
+    detenerReloj();
+
+    document.getElementById(
+        color === "blanco" ? "reloj-blanco" : "reloj-negro"
+    ).classList.add("tiempo-agotado");
+
+    estadoTexto.textContent =
+        `⏱️ Tiempo agotado — Ganan ${color === "blanco" ? "Negras" : "Blancas"}`;
+
+    tablero.style.pointerEvents = "none";
+}
 

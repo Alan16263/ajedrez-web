@@ -162,3 +162,39 @@ h1 {
 .fila-central {
     display: flex;
 }
+.reloj {
+  background: #1e1e1e;
+  border-radius: 10px;
+  padding: 14px;
+  text-align: center;
+  border: 2px solid #444;
+}
+
+.reloj .color {
+  font-size: 14px;
+  color: #bbb;
+  margin-bottom: 6px;
+}
+
+.reloj .tiempo {
+  font-size: 32px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 1px;
+}
+.reloj.activo {
+  border-color: #4caf50;
+  box-shadow: 0 0 10px rgba(76, 175, 80, 0.4);
+}
+
+.reloj.activo .tiempo {
+  color: #4caf50;
+}
+.reloj.tiempo-agotado {
+  background: #b71c1c;
+  border-color: #ff5252;
+}
+
+.reloj.tiempo-agotado .tiempo {
+  color: #ffffff;
+}
