@@ -1,3 +1,15 @@
+const socket = io();
+
+socket.on("move", (data) => {
+  // aplicar movimiento recibido
+  aplicarMovimiento(data);
+});
+
+// cuando hagas un movimiento:
+function enviarMovimiento(move) {
+  socket.emit("move", move);
+}
+
 const tablero = document.getElementById("tablero");
 const turnoTexto = document.getElementById("turno");
 const estadoTexto = document.getElementById("estado");
@@ -740,3 +752,5 @@ function dibujarCoordenadas() {
 }
 
 dibujarCoordenadas();
+
+
