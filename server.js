@@ -67,40 +67,40 @@ io.on("connection", socket => {
 
     // UNIFICADO: Solo un evento de movimiento
     socket.on("movimiento", data => {
+        // VALIDACIÓN: Si no hay partida activa o no es el turno, ignorar
         if (!partida || socket.color !== partida.turno) return;
 
-        const { from, to, pieza, especial } = data;
+        try {
+            const { from, to, pieza, especial } = data;
 
-        // 1. Lógica En Passant (Capturar peón lateral)
-        if (especial === "enPassant") {
-            partida.tablero[from.y][to.x] = null;
+            // Evitar que el servidor se rompa si los datos vienen incompletos
+            if (!from || !to || !pieza) return;
+
+            // Lógica de movimientos especiales...
+            if (especial === "enPassant") {
+                partida.tablero[from.y][to.x] = null;
+            } else if (especial === "enroqueCorto") {
+                const fila = pieza.endsWith("b") ? 7 : 0;
+                partida.tablero[fila][5] = partida.tablero[fila][7];
+                partida.tablero[fila][7] = null;
+            } else if (especial === "enroqueLargo") {
+                const fila = pieza.endsWith("b") ? 7 : 0;
+                partida.tablero[fila][3] = partida.tablero[fila][0];
+                partida.tablero[fila][0] = null;
+            }
+
+            // Aplicar movimiento
+            partida.tablero[to.y][to.x] = pieza;
+            partida.tablero[from.y][from.x] = null;
+            
+            partida.ultimoMovimiento = data;
+            partida.turno = partida.turno === "b" ? "n" : "b";
+            partida.historial.push({ ...data, color: socket.color === "b" ? "blanco" : "negro" });
+
+            io.emit("estado", partida); 
+        } catch (e) {
+            console.error("Error procesando movimiento:", e);
         }
-
-        // 2. Lógica de Enroque (Mover la Torre también)
-        if (especial === "enroqueCorto") {
-            const fila = pieza.endsWith("b") ? 7 : 0;
-            partida.tablero[fila][5] = partida.tablero[fila][7]; // Torre a la izq del rey
-            partida.tablero[fila][7] = null;
-        } 
-        else if (especial === "enroqueLargo") {
-            const fila = pieza.endsWith("b") ? 7 : 0;
-            partida.tablero[fila][3] = partida.tablero[fila][0]; // Torre a la der del rey
-            partida.tablero[fila][0] = null;
-        }
-
-        // 3. Mover la pieza principal
-        partida.tablero[to.y][to.x] = pieza;
-        partida.tablero[from.y][from.x] = null;
-
-        // 4. Actualizar estado global
-        partida.ultimoMovimiento = data;
-        partida.turno = partida.turno === "b" ? "n" : "b";
-        
-        // Formatear historial para el cliente
-        const colorNom = socket.color === "b" ? "blanco" : "negro";
-        partida.historial.push({ ...data, color: colorNom });
-
-        io.emit("estado", partida); 
     });
 
     // Lógica de emparejamiento
@@ -124,11 +124,17 @@ io.on("connection", socket => {
     });
 
     socket.on("disconnect", () => {
-        console.log("Jugador desconectado");
-        esperando = null;
-        partida = null;
-        clearInterval(intervaloReloj);
-        io.emit("reset");
+        console.log("Jugador desconectado:", socket.id);
+        // IMPORTANTE: Si un jugador se va, limpiamos para que otros puedan jugar
+        if (esperando === socket) {
+            esperando = null;
+        } else {
+            // Si había una partida en curso, avisamos y reseteamos
+            partida = null;
+            clearInterval(intervaloReloj);
+            io.emit("mensaje-sistema", "Un jugador se ha desconectado. Reiniciando juego...");
+            io.emit("reset");
+        }
     });
 });
 

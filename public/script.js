@@ -30,7 +30,20 @@ socket.on("estado", data => {
     dibujarHistorial();
     actualizarVistaReloj();
 });
-
+socket.on("connect", () => {
+    console.log("Conectado al servidor de Render");
+    estadoTexto.textContent = "Conectado. Buscando partida...";
+});
+socket.on("disconnect", () => {
+    estadoTexto.textContent = "Conexión perdida. Intentando reconectar...";
+});
+// Escuchar mensajes del sistema
+socket.on("mensaje-sistema", (msg) => {
+    estadoTexto.textContent = msg;
+    setTimeout(() => {
+        if (!partida) location.reload(); // Recargar si la partida se rompió
+    }, 3000);
+});
 const tablero = document.getElementById("tablero");
 const turnoTexto = document.getElementById("turno");
 const estadoTexto = document.getElementById("estado");
@@ -118,24 +131,24 @@ iniciarReloj();
 
 
 function manejarClick(e) {
-    if ((turno === "blanco" && miColor !== "b") ||
-        (turno === "negro" && miColor !== "n")) {
+    if (!miColor || (turno === "blanco" && miColor !== "b") || (turno === "negro" && miColor !== "n")) {
         estadoTexto.textContent = "No es tu turno";
         return;
     }
+
     const x = parseInt(e.currentTarget.dataset.x);
     const y = parseInt(e.currentTarget.dataset.y);
-
     const pieza = estado[y][x];
 
-    // 🔒 SI YA HAY SELECCIÓN
     if (seleccion) {
-        // ✔️ Permitir mover SOLO si es movimiento válido
         if (esMovimientoValido(x, y)) {
             moverPieza(x, y);
         } else {
-            // ❌ No permitir cambiar de pieza
-            estadoTexto.textContent = "Debes mover la pieza seleccionada";
+            // Si hace clic en un lugar no válido, DESELECCIONAMOS
+            seleccion = null;
+            movimientosValidos = [];
+            limpiarResaltados();
+            estadoTexto.textContent = "Movimiento cancelado";
         }
         return;
     }
@@ -731,3 +744,9 @@ window.onload = () => {
     dibujarCoordenadas();
     actualizarVistaReloj();
 };
+// En script.js añadir un botón que haga esto:
+function solicitarReinicio() {
+    if(confirm("¿Quieres reiniciar la partida?")) {
+        socket.emit("reset");
+    }
+}
