@@ -5,51 +5,34 @@
     <title>Ajedrez Web</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-
 </head>
 <body>
 
-<h1>Ajedrez 2D</h1>
-<div id="turno">Turno: Blancas</div>
-<div id="estado"></div>
+    <h1>Ajedrez 2D</h1>
+    <div id="turno">Turno: Esperando...</div>
+    <div id="estado">Conectando al servidor en Render...</div>
 
-<div class="juego">
-    <!-- ⏱️ RELOJ (IZQUIERDA) -->
-    <div id="relojes">
-        <div id="reloj-blanco" class="reloj activo">
-            <div class="color">♙ Blancas</div>
-            <div id="tiempo-blanco" class="tiempo">10:00</div>
+    <div class="juego">
+        <div id="relojes">
+            <div id="reloj-blanco" class="reloj">
+                <div class="color">♙ Blancas</div>
+                <div id="tiempo-blanco" class="tiempo">10:00</div>
+            </div>
+            <div id="reloj-negro" class="reloj">
+                <div class="color">♟ Negras</div>
+                <div id="tiempo-negro" class="tiempo">10:00</div>
+            </div>
         </div>
 
-        <div id="reloj-negro" class="reloj">
-            <div class="color">♟ Negras</div>
-            <div id="tiempo-negro" class="tiempo">10:00</div>
-        </div>
+        <div class="coordenadas-tablero">
+            <div class="letras"></div> <div class="fila-central">
+                <div class="numeros"></div> <div id="tablero"></div>    <div class="numeros"></div> </div>
+            <div class="letras"></div> </div>
+
+        <div id="historial" class="historial"></div>
     </div>
-    <div class="coordenadas-tablero">
 
-        <!-- Letras arriba -->
-        <div class="letras"></div>
-
-        <div class="fila-central">
-            <!-- Números izquierda -->
-            <div class="numeros"></div>
-
-            <!-- Tablero -->
-            <div id="tablero"></div>
-
-            <!-- Números derecha -->
-            <div class="numeros"></div>
-        </div>
-
-        <!-- Letras abajo -->
-        <div class="letras"></div>
-
-    </div>
-    <div id="historial" class="historial"></div>
-</div>
-
-<script src="/socket.io/socket.io.js"></script>
-<script src="script.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>

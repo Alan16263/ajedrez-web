@@ -1,4 +1,4 @@
-const socket = io();
+const socket = io("https://ajedrez-web-cyfs.onrender.com");
 let miColor = null;
 socket.on("esperando", () => {
     document.getElementById("estado").textContent = "Esperando rival...";

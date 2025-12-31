@@ -1,12 +1,21 @@
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
+const path = require("path"); // Necesario para las rutas
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+    cors: { origin: "*" } // Permite que te conectes desde local a Render
+});
 
-app.use(express.static(__dirname));
+// Indicar que los archivos están en la carpeta 'public'
+app.use(express.static(path.join(__dirname, "public")));
+
+// Ruta principal
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
 let esperando = null;
 let partida = null;
@@ -123,4 +132,7 @@ io.on("connection", socket => {
     });
 });
 
-server.listen(3000, () => console.log("Servidor en http://localhost:3000"));
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Servidor en puerto ${PORT}`);
+});
