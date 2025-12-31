@@ -35,13 +35,8 @@ body {
 }
 
 
-.blanca {
-    background-color: #f5e6c8;
-}
-
-.negra {
-    background-color: #b08b57;
-}
+.blanca { background-color: #ebecd0; }
+.negra { background-color: #779556; }
 
 
 .seleccionada {
@@ -157,9 +152,7 @@ h1 {
     justify-content: center;
 }
 
-.fila-central {
-    display: flex;
-}
+.fila-central { display: flex; align-items: center; }
 .reloj {
   background: #1e1e1e;
   border-radius: 10px;

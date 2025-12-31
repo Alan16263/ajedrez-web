@@ -659,6 +659,7 @@ function dibujarCoordenadas() {
     const letras = ["a","b","c","d","e","f","g","h"];
     const numeros = ["8","7","6","5","4","3","2","1"];
 
+    // Llenar todos los contenedores de letras (arriba y abajo)
     document.querySelectorAll(".letras").forEach(contenedor => {
         contenedor.innerHTML = "";
         letras.forEach(l => {
@@ -668,6 +669,7 @@ function dibujarCoordenadas() {
         });
     });
 
+    // Llenar todos los contenedores de números (izquierda y derecha)
     document.querySelectorAll(".numeros").forEach(contenedor => {
         contenedor.innerHTML = "";
         numeros.forEach(n => {
@@ -723,4 +725,9 @@ socket.on("fin", data => {
     tablero.style.pointerEvents = "none";
 });
 
-
+// Al final de script.js
+window.onload = () => {
+    dibujarTablero();
+    dibujarCoordenadas();
+    actualizarVistaReloj();
+};
