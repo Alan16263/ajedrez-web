@@ -1,21 +1,36 @@
-let socket = null;
+const socket = io();
+let miColor = null;
+socket.on("esperando", () => {
+    document.getElementById("estado").textContent = "Esperando rival...";
+});
+socket.on("inicio", data => {
+    miColor = data.color;
 
-if (typeof io !== "undefined") {
-    socket = io();
+    estado = data.estado.tablero;
+    turno = data.estado.turno === "b" ? "blanco" : "negro";
+    movimientos = data.estado.historial;
 
-    socket.on("move", (data) => {
-        aplicarMovimiento(data);
-    });
-}
+    dibujarTablero();
+    dibujarHistorial();
+    actualizarVistaReloj();
+});
+let ultimoMovimiento = null;
+socket.on("estado", data => {
+    estado = data.tablero;
+    turno = data.turno === "b" ? "blanco" : "negro";
+    ultimoMovimiento = data.ultimoMovimiento;
+    
+    // Sincronizar el historial para que aparezca en el panel lateral
+    movimientos = data.historial; 
 
-function enviarMovimiento(move) {
-    if (socket) {
-        socket.emit("move", move);
-    }
-}
+    tiempoBlanco = data.tiempoBlanco;
+    tiempoNegro = data.tiempoNegro;
 
-let piezaSeleccionada = null; // { x, y, pieza }
-let seleccionBloqueada = false;
+    dibujarTablero();
+    dibujarHistorial();
+    actualizarVistaReloj();
+});
+
 const tablero = document.getElementById("tablero");
 const turnoTexto = document.getElementById("turno");
 const estadoTexto = document.getElementById("estado");
@@ -37,7 +52,6 @@ const nombresPiezas = {
 let movimientos = [];
 let numeroMovimiento = 1;
 let contador50 = 0;
-let turno = "blanco";
 let seleccion = null;
 let movimientosValidos = [];
 let movido = {
@@ -52,8 +66,8 @@ let movido = {
 const piezas = {
     "pb": "♙", "pn": "♟",
     "tb": "♖", "tn": "♜",
-    "cb": "♗", "cn": "♝",
-    "ab": "♘", "an": "♞",
+    "ab": "♗", "an": "♝",
+    "cb": "♘", "cn": "♞",
     "rb": "♕", "rn": "♛",
     "kb": "♔", "kn": "♚"
 };
@@ -104,6 +118,11 @@ iniciarReloj();
 
 
 function manejarClick(e) {
+    if ((turno === "blanco" && miColor !== "b") ||
+        (turno === "negro" && miColor !== "n")) {
+        estadoTexto.textContent = "No es tu turno";
+        return;
+    }
     const x = parseInt(e.currentTarget.dataset.x);
     const y = parseInt(e.currentTarget.dataset.y);
 
@@ -122,7 +141,6 @@ function manejarClick(e) {
     }
 
     // 🔓 NO HAY SELECCIÓN → intentar seleccionar
-
     if (!pieza) return;
 
     const colorPieza = pieza.endsWith("b") ? "blanco" : "negro";
@@ -149,212 +167,160 @@ function manejarClick(e) {
 function numeroPeon(pieza, origenX) {
     return peonesID[pieza + origenX] ?? "";
 }
-function obtenerMovimientos(x, y, pieza,ignorarEnroque=false) {
+function obtenerMovimientos(x, y, pieza, ignorarEnroque = false) {
     let movimientos = [];
-
     const esBlanco = pieza.endsWith("b");
     const enemigo = esBlanco ? "n" : "b";
 
-    // =========================
-    // ♟️ PEÓN
-    // =========================
+    // ==========================================
+    // ♟️ PEÓN (p)
+    // ==========================================
     if (pieza[0] === "p") {
         const dir = esBlanco ? -1 : 1;
         const filaInicial = esBlanco ? 6 : 1;
 
+        // Movimiento 1 paso adelante
         let ny = y + dir;
         if (estaDentro(x, ny) && estado[ny][x] === null) {
             movimientos.push({ x, y: ny });
 
+            // Movimiento 2 pasos (desde fila inicial)
             let ny2 = y + dir * 2;
             if (y === filaInicial && estado[ny2][x] === null) {
                 movimientos.push({ x, y: ny2 });
             }
         }
 
+        // Capturas normales
         for (let dx of [-1, 1]) {
             let cx = x + dx;
             let cy = y + dir;
-            if (
-                estaDentro(cx, cy) &&
-                estado[cy][cx] !== null &&
-                estado[cy][cx].endsWith(enemigo)
-            ) {
+            if (estaDentro(cx, cy) && estado[cy][cx] !== null && estado[cy][cx].endsWith(enemigo)) {
                 movimientos.push({ x: cx, y: cy });
             }
         }
+
+        // ⚡ PEÓN AL PASO (EN PASSANT)
+        if (ultimoMovimiento && ultimoMovimiento.pieza && ultimoMovimiento.pieza[0] === "p") {
+            const { from: f, to: t } = ultimoMovimiento;
+            // El peón enemigo debe haber movido 2 casillas y estar al lado del mío
+            if (Math.abs(t.y - f.y) === 2 && t.y === y && Math.abs(t.x - x) === 1) {
+                movimientos.push({ 
+                    x: t.x, 
+                    y: y + dir, 
+                    especial: "enPassant" 
+                });
+            }
+        }
     }
 
-    // =========================
-    // ♜ TORRE
-    // =========================
+    // ==========================================
+    // ♜ TORRE (t)
+    // ==========================================
     if (pieza[0] === "t") {
-        const direcciones = [
-            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
-            { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
-        ];
-
-        for (let dir of direcciones) {
-            let nx = x + dir.dx;
-            let ny = y + dir.dy;
-
+        const direcciones = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];
+        for (let d of direcciones) {
+            let nx = x + d.dx, ny = y + d.dy;
             while (estaDentro(nx, ny)) {
-                if (estado[ny][nx] === null) {
-                    movimientos.push({ x: nx, y: ny });
-                } else {
-                    if (estado[ny][nx].endsWith(enemigo)) {
-                        movimientos.push({ x: nx, y: ny });
-                    }
+                if (estado[ny][nx] === null) movimientos.push({ x: nx, y: ny });
+                else {
+                    if (estado[ny][nx].endsWith(enemigo)) movimientos.push({ x: nx, y: ny });
                     break;
                 }
-                nx += dir.dx;
-                ny += dir.dy;
+                nx += d.dx; ny += d.dy;
             }
         }
     }
 
-    // =========================
-    // ♝ ALFIL
-    // =========================
+    // ==========================================
+    // ♝ ALFIL (c) - Basado en tu lógica de matriz
+    // ==========================================
     if (pieza[0] === "c") {
-        const diagonales = [
-            { dx: 1, dy: 1 }, { dx: -1, dy: 1 },
-            { dx: 1, dy: -1 }, { dx: -1, dy: -1 }
-        ];
-
-        for (let dir of diagonales) {
-            let nx = x + dir.dx;
-            let ny = y + dir.dy;
-
+        const diagonales = [{ dx: 1, dy: 1 }, { dx: -1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: -1 }];
+        for (let d of diagonales) {
+            let nx = x + d.dx, ny = y + d.dy;
             while (estaDentro(nx, ny)) {
-                if (estado[ny][nx] === null) {
-                    movimientos.push({ x: nx, y: ny });
-                } else {
-                    if (estado[ny][nx].endsWith(enemigo)) {
-                        movimientos.push({ x: nx, y: ny });
-                    }
+                if (estado[ny][nx] === null) movimientos.push({ x: nx, y: ny });
+                else {
+                    if (estado[ny][nx].endsWith(enemigo)) movimientos.push({ x: nx, y: ny });
                     break;
                 }
-                nx += dir.dx;
-                ny += dir.dy;
+                nx += d.dx; ny += d.dy;
             }
         }
     }
 
-    // =========================
-    // ♛ REINA
-    // =========================
-    if (pieza[0] === "r") {
-        const direcciones = [
-            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
-            { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
-            { dx: 1, dy: 1 }, { dx: -1, dy: 1 },
-            { dx: 1, dy: -1 }, { dx: -1, dy: -1 }
-        ];
-
-        for (let dir of direcciones) {
-            let nx = x + dir.dx;
-            let ny = y + dir.dy;
-
-            while (estaDentro(nx, ny)) {
-                if (estado[ny][nx] === null) {
-                    movimientos.push({ x: nx, y: ny });
-                } else {
-                    if (estado[ny][nx].endsWith(enemigo)) {
-                        movimientos.push({ x: nx, y: ny });
-                    }
-                    break;
-                }
-                nx += dir.dx;
-                ny += dir.dy;
-            }
-        }
-    }
-
-    // =========================
-    // ♞ CABALLO
-    // =========================
+    // ==========================================
+    // ♞ CABALLO (a) - Basado en tu lógica de matriz
+    // ==========================================
     if (pieza[0] === "a") {
         const saltos = [
-            { dx: 2, dy: 1 }, { dx: 2, dy: -1 },
-            { dx: -2, dy: 1 }, { dx: -2, dy: -1 },
-            { dx: 1, dy: 2 }, { dx: 1, dy: -2 },
-            { dx: -1, dy: 2 }, { dx: -1, dy: -2 }
+            { dx: 2, dy: 1 }, { dx: 2, dy: -1 }, { dx: -2, dy: 1 }, { dx: -2, dy: -1 },
+            { dx: 1, dy: 2 }, { dx: 1, dy: -2 }, { dx: -1, dy: 2 }, { dx: -1, dy: -2 }
         ];
-
         for (let s of saltos) {
-            let nx = x + s.dx;
-            let ny = y + s.dy;
-
-            if (!estaDentro(nx, ny)) continue;
-
-            if (
-                estado[ny][nx] === null ||
-                estado[ny][nx].endsWith(enemigo)
-            ) {
+            let nx = x + s.dx, ny = y + s.dy;
+            if (estaDentro(nx, ny) && (estado[ny][nx] === null || estado[ny][nx].endsWith(enemigo))) {
                 movimientos.push({ x: nx, y: ny });
             }
         }
     }
 
-    // =========================
-    // 👑 REY
-    // =========================
-    if (pieza[0] === "k") {
-        const direcciones = [
-            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
-            { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
-            { dx: 1, dy: 1 }, { dx: -1, dy: 1 },
-            { dx: 1, dy: -1 }, { dx: -1, dy: -1 }
+    // ==========================================
+    // ♛ REINA (r)
+    // ==========================================
+    if (pieza[0] === "r") {
+        const dirs = [
+            { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+            { dx: 1, dy: 1 }, { dx: -1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: -1 }
         ];
+        for (let d of dirs) {
+            let nx = x + d.dx, ny = y + d.dy;
+            while (estaDentro(nx, ny)) {
+                if (estado[ny][nx] === null) movimientos.push({ x: nx, y: ny });
+                else {
+                    if (estado[ny][nx].endsWith(enemigo)) movimientos.push({ x: nx, y: ny });
+                    break;
+                }
+                nx += d.dx; ny += d.dy;
+            }
+        }
+    }
 
-        for (let d of direcciones) {
-            let nx = x + d.dx;
-            let ny = y + d.dy;
-
-            if (!estaDentro(nx, ny)) continue;
-
-            if (
-                estado[ny][nx] === null ||
-                estado[ny][nx].endsWith(enemigo)
-            ) {
+    // ==========================================
+    // 👑 REY (k) + ENROQUE
+    // ==========================================
+    if (pieza[0] === "k") {
+        const dirs = [
+            { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+            { dx: 1, dy: 1 }, { dx: -1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: -1 }
+        ];
+        for (let d of dirs) {
+            let nx = x + d.dx, ny = y + d.dy;
+            if (estaDentro(nx, ny) && (estado[ny][nx] === null || estado[ny][nx].endsWith(enemigo))) {
                 movimientos.push({ x: nx, y: ny });
             }
         }
-        // =========================
-        // ♜ ENROQUE
-        // =========================
+
+        // Lógica de Enroque (Castling)
         if (!ignorarEnroque && !estaEnJaque(esBlanco ? "blanco" : "negro")) {
             const fila = esBlanco ? 7 : 0;
             const reyKey = esBlanco ? "kb" : "kn";
 
             if (!movido[reyKey] && y === fila && x === 4) {
-
                 // Enroque corto
-                const torreCorta = esBlanco ? "tb7" : "tn7";
-                if (
-                    !movido[torreCorta] &&
-                    estado[fila][7] === (esBlanco ? "tb" : "tn") &&
-                    estado[fila][5] === null &&
-                    estado[fila][6] === null &&
+                const torreC = esBlanco ? "tb7" : "tn7";
+                if (!movido[torreC] && estado[fila][5] === null && estado[fila][6] === null &&
                     !casillaAtacada(5, fila, esBlanco ? "blanco" : "negro") &&
-                    !casillaAtacada(6, fila, esBlanco ? "blanco" : "negro")
-                ) {
-                    movimientos.push({ x: 6, y: fila, enroque: "corto" });
+                    !casillaAtacada(6, fila, esBlanco ? "blanco" : "negro")) {
+                    movimientos.push({ x: 6, y: fila, especial: "enroqueCorto" });
                 }
-
                 // Enroque largo
-                const torreLarga = esBlanco ? "tb0" : "tn0";
-                if (
-                    !movido[torreLarga] &&
-                    estado[fila][0] === (esBlanco ? "tb" : "tn")&&
-                    estado[fila][1] === null &&
-                    estado[fila][2] === null &&
-                    estado[fila][3] === null &&
+                const torreL = esBlanco ? "tb0" : "tn0";
+                if (!movido[torreL] && estado[fila][1] === null && estado[fila][2] === null && estado[fila][3] === null &&
                     !casillaAtacada(3, fila, esBlanco ? "blanco" : "negro") &&
-                    !casillaAtacada(2, fila, esBlanco ? "blanco" : "negro")
-                ) {
-                    movimientos.push({ x: 2, y: fila, enroque: "largo" });
+                    !casillaAtacada(2, fila, esBlanco ? "blanco" : "negro")) {
+                    movimientos.push({ x: 2, y: fila, especial: "enroqueLargo" });
                 }
             }
         }
@@ -400,111 +366,53 @@ function limpiarResaltados() {
     document.querySelectorAll(".seleccionada, .movimiento")
         .forEach(c => c.classList.remove("seleccionada", "movimiento"));
 }
-
+function obtenerPiezaPromocionada(x, y, piezaActual) {
+    // Blanco llega a fila 0, Negro llega a fila 7
+    if (piezaActual === "pb" && y === 0) return "rb"; 
+    if (piezaActual === "pn" && y === 7) return "rn"; 
+    return piezaActual;
+}
 
 function moverPieza(x, y) {
-    if (animando) return; // ⛔ bloqueo real
-    animando = true;
-    tablero.style.pointerEvents = "none";
+    if (animando) return;
+    
+    const movDestino = movimientosValidos.find(m => m.x === x && m.y === y);
+    if (!movDestino) return;
 
     const origen = { x: seleccion.x, y: seleccion.y };
     const destino = { x, y };
-    const pieza = seleccion.pieza;
+    let piezaOriginal = seleccion.pieza;
 
-    const esPeon = pieza[0] === "p";
-    const esCaptura = estado[y][x] !== null;
+    // Verificar si corona
+    const piezaFinal = obtenerPiezaPromocionada(destino.x, destino.y, piezaOriginal);
 
-    // 📌 Regla de los 50 movimientos
-    contador50 = (esPeon || esCaptura) ? 0 : contador50 + 1;
+    animando = true;
+    tablero.style.pointerEvents = "none"; // Bloquear clics durante animación
 
-    // 🎬 Animación
     animarMovimiento(origen.x, origen.y, x, y, () => {
-
-        // =====================
-        // 🧠 APLICAR MOVIMIENTO
-        // =====================
-        estado[y][x] = pieza;
-        estado[origen.y][origen.x] = null;
-
-        // ♜ ENROQUE
-        if (pieza[0] === "k" && Math.abs(x - origen.x) === 2) {
-            const fila = origen.y;
-            if (x === 6) { // corto
-                estado[fila][5] = estado[fila][7];
-                estado[fila][7] = null;
-            }
-            if (x === 2) { // largo
-                estado[fila][3] = estado[fila][0];
-                estado[fila][0] = null;
-            }
-        }
-
-        // 👑 PROMOCIÓN
-        promoverPeon(x, y);
-
-        // 📌 MARCAR PIEZAS MOVIDAS (enroque)
-        if (pieza === "kb") movido.kb = true;
-        if (pieza === "kn") movido.kn = true;
-        if (origen.x === 0 && origen.y === 7) movido.tb0 = true;
-        if (origen.x === 7 && origen.y === 7) movido.tb7 = true;
-        if (origen.x === 0 && origen.y === 0) movido.tn0 = true;
-        if (origen.x === 7 && origen.y === 0) movido.tn7 = true;
-
-        // 📜 MOVIMIENTO ESPECIAL
-        let especial = "";
-        if (pieza[0] === "k" && Math.abs(x - origen.x) === 2) {
-            especial = x === 6 ? "O-O" : "O-O-O";
-        }
-
-        registrarMovimiento(origen, destino, pieza, esCaptura, especial);
-        dibujarHistorial();
-
-        // 🔄 CAMBIAR TURNO
-        turno = turno === "blanco" ? "negro" : "blanco";
-        turnoTexto.textContent = "Turno 1 — Blancas";
-
-        // =====================
-        // 🧠 VERIFICAR TABLAS
-        // =====================
-        if (materialInsuficiente()) {
-            estadoTexto.textContent = "🤝 TABLAS — Material insuficiente";
-            detenerReloj();
-            finalizarTurno();
-            return;
-        }
-
-        if (contador50 >= 100) {
-            estadoTexto.textContent = "🤝 TABLAS — Regla de los 50 movimientos";
-            detenerReloj();
-            finalizarTurno();
-            return;
-        }
-
-        // =====================
-        // ⚠️ JAQUE / MATE / AHOGADO
-        // =====================
-        if (estaEnJaque(turno)) {
-            if (esJaqueMate(turno)) {
-                estadoTexto.textContent =
-                    `♚ JAQUE MATE — Ganan ${turno === "blanco" ? "Negras" : "Blancas"}`;
-                detenerReloj();
-                finalizarTurno();
-                return;
-            } else {
-                estadoTexto.textContent = "⚠️ JAQUE";
-            }
-        } else if (esAhogado(turno)) {
-            estadoTexto.textContent = "🤝 TABLAS — Ahogado";
-            detenerReloj();
-            finalizarTurno();
-            return;
-        } else {
-            estadoTexto.textContent = "";
-        }
+        socket.emit("movimiento", {
+            from: origen,
+            to: destino,
+            pieza: piezaFinal,
+            especial: movDestino.especial || null 
+        });
         
-        finalizarTurno();
+        seleccion = null;
+        movimientosValidos = [];
+        animando = false;
+        tablero.style.pointerEvents = "auto";
     });
 }
+function enviarMovimientoServidor(origen, destino, pieza) {
+    if (!socket) return;
+
+    socket.emit("movimiento", {
+        from: origen,
+        to: destino,
+        pieza
+    });
+}
+
 function finalizarTurno() {
     seleccion = null;
     movimientosValidos = [];
@@ -790,48 +698,29 @@ function actualizarVistaReloj() {
         .classList.toggle("activo", turno === "negro");
 }
 
-function iniciarReloj() {
-    detenerReloj();
-
-    intervaloReloj = setInterval(() => {
-        if (animando) return; // ⛔ no corre durante animaciones
-
-        if (turno === "blanco") {
-            tiempoBlanco--;
-            if (tiempoBlanco <= 0) {
-                tiempoBlanco = 0;
-                tiempoAgotado("blanco");
-            }
-        } else {
-            tiempoNegro--;
-            if (tiempoNegro <= 0) {
-                tiempoNegro = 0;
-                tiempoAgotado("negro");
-            }
-        }
-
-        actualizarVistaReloj();
-    }, 1000);
+function estadoInicial() {
+    return {
+        tablero: [/* tu tablero */],
+        turno: "b",
+        historial: [],
+        tiempoBlanco: 10*60, // segundos
+        tiempoNegro: 10*60
+    };
 }
 
-function detenerReloj() {
-    if (intervaloReloj) {
-        clearInterval(intervaloReloj);
-        intervaloReloj = null;
-    }
-}
+io.emit("fin", { ganador });
 
 
-function tiempoAgotado(color) {
-    detenerReloj();
+socket.on("reset", () => {
+    partida = estadoInicial();
+    io.emit("reset");
+    iniciarReloj();
+});
 
-    document.getElementById(
-        color === "blanco" ? "reloj-blanco" : "reloj-negro"
-    ).classList.add("tiempo-agotado");
 
-    estadoTexto.textContent =
-        `⏱️ Tiempo agotado — Ganan ${color === "blanco" ? "Negras" : "Blancas"}`;
-
+socket.on("fin", data => {
+    estadoTexto.textContent = `⏱️ Tiempo agotado — Ganador: ${data.ganador === "b" ? "Blancas" : "Negras"}`;
     tablero.style.pointerEvents = "none";
-}
+});
+
 
