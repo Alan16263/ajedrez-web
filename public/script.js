@@ -20,12 +20,12 @@ socket.on("estado", data => {
     estado = data.tablero;
     turno = data.turno === "b" ? "blanco" : "negro";
     ultimoMovimiento = data.ultimoMovimiento;
-    
-    // Sincronizar el historial para que aparezca en el panel lateral
+
     movimientos = data.historial; 
     tiempoBlanco = data.tiempoBlanco;
     tiempoNegro = data.tiempoNegro;
 
+    dibujarTablero();        // 🔥 ESTO FALTABA
     dibujarHistorial();
     actualizarVistaReloj();
 });
@@ -93,7 +93,7 @@ let estado = [
 ];
 
 function dibujarTablero() {
-
+    tablero.innerHTML = "";
     for (let y = 0; y < 8; y++) {
         for (let x = 0; x < 8; x++) {
 
@@ -620,10 +620,11 @@ function dibujarCoordenadas() {
 
     // Llenar todos los contenedores de letras (arriba y abajo)
     document.querySelectorAll(".letras").forEach(contenedor => {
-        letras.forEach(l => {
-            const d = document.createElement("div");
-            d.textContent = l;
-            contenedor.appendChild(d);
+    contenedor.innerHTML = ""; // 🔥 LIMPIAR
+    letras.forEach(l => {
+        const d = document.createElement("div");
+        d.textContent = l;
+        contenedor.appendChild(d);
         });
     });
 

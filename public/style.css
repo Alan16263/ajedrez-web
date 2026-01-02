@@ -135,6 +135,12 @@ h1 {
     color: #666;
     text-transform: uppercase;
 }
+.letras {
+    display: grid;
+    grid-template-columns: repeat(8, 60px);
+    height: 20px;
+    user-select: none;
+}
 
 .numeros {
     display: grid;
