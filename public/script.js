@@ -12,6 +12,7 @@ socket.on("inicio", data => {
 
     dibujarTablero();
     dibujarHistorial();
+    dibujarCoordenadas();
     actualizarVistaReloj();
 });
 let ultimoMovimiento = null;
@@ -22,11 +23,9 @@ socket.on("estado", data => {
     
     // Sincronizar el historial para que aparezca en el panel lateral
     movimientos = data.historial; 
-
     tiempoBlanco = data.tiempoBlanco;
     tiempoNegro = data.tiempoNegro;
 
-    dibujarTablero();
     dibujarHistorial();
     actualizarVistaReloj();
 });
@@ -51,7 +50,6 @@ const peonesID = {};
 let animando = false;
 let tiempoBlanco = 10 * 60; // 10 minutos
 let tiempoNegro = 10 * 60;
-let intervaloReloj = null;
 const historialDiv = document.getElementById("historial");
 const nombresPiezas = {
     p: "Pawn",
@@ -63,8 +61,6 @@ const nombresPiezas = {
 };
 
 let movimientos = [];
-let numeroMovimiento = 1;
-let contador50 = 0;
 let seleccion = null;
 let movimientosValidos = [];
 let movido = {
@@ -97,7 +93,6 @@ let estado = [
 ];
 
 function dibujarTablero() {
-    tablero.innerHTML = "";
 
     for (let y = 0; y < 8; y++) {
         for (let x = 0; x < 8; x++) {
@@ -127,7 +122,6 @@ function dibujarTablero() {
 
 dibujarTablero();
 actualizarVistaReloj();
-iniciarReloj();
 
 
 function manejarClick(e) {
@@ -426,29 +420,17 @@ function enviarMovimientoServidor(origen, destino, pieza) {
     });
 }
 
-function finalizarTurno() {
-    seleccion = null;
-    movimientosValidos = [];
-    dibujarTablero();
-    actualizarVistaReloj();
-    iniciarReloj();
-    tablero.style.pointerEvents = "auto";
-    animando = false;
-}
 
 function dibujarHistorial() {
     historialDiv.innerHTML = "";
 
-    movimientos.forEach(mov => {
+    movimientos.forEach((mov, i) => {
         const div = document.createElement("div");
-        div.className = mov.color;
-        div.textContent =
-            mov.color === "blanco"
-                ? `${mov.numero}. ${mov.texto}`
-                : `… ${mov.texto}`;
+        div.textContent = `${i + 1}. ${coordAJedrez(mov.from.x, mov.from.y)} → ${coordAJedrez(mov.to.x, mov.to.y)}`;
         historialDiv.appendChild(div);
     });
 }
+
 function coordAJedrez(x, y) {
     const letras = ["a","b","c","d","e","f","g","h"];
     return letras[x] + (8 - y);
@@ -591,42 +573,6 @@ function materialInsuficiente() {
 
     return false;
 }
-function registrarMovimiento(origen, destino, pieza, esCaptura, especial = "") {
-    const tipo = pieza[0];
-    const color = pieza[1];
-
-    const colorTexto = color === "b" ? "white" : "black";
-    let nombre = `${nombresPiezas[tipo]} ${colorTexto}`;
-
-    // Numerar peones
-    if (tipo === "p") {
-        nombre += " " + numeroPeon(pieza, origen.x);
-    }
-
-    const hacia = coordAJedrez(destino.x, destino.y);
-
-    let texto = `${nombre} ${hacia}`;
-
-    if (esCaptura) texto += " x";
-
-    if (especial) texto = especial;
-
-    // Jaque / mate
-    if (estaEnJaque(turno === "blanco" ? "negro" : "blanco")) {
-        texto += esJaqueMate(turno === "blanco" ? "negro" : "blanco")
-            ? " #"
-            : " +";
-    }
-
-    movimientos.push({
-        numero: numeroMovimiento,
-        texto,
-        color
-    });
-
-    if (color === "n") numeroMovimiento++;
-}
-
 
 function animarMovimiento(origenX, origenY, destinoX, destinoY, callback) {
     const tablero = document.getElementById("tablero");
@@ -674,7 +620,6 @@ function dibujarCoordenadas() {
 
     // Llenar todos los contenedores de letras (arriba y abajo)
     document.querySelectorAll(".letras").forEach(contenedor => {
-        contenedor.innerHTML = "";
         letras.forEach(l => {
             const d = document.createElement("div");
             d.textContent = l;
@@ -684,7 +629,6 @@ function dibujarCoordenadas() {
 
     // Llenar todos los contenedores de números (izquierda y derecha)
     document.querySelectorAll(".numeros").forEach(contenedor => {
-        contenedor.innerHTML = "";
         numeros.forEach(n => {
             const d = document.createElement("div");
             d.textContent = n;
@@ -693,7 +637,6 @@ function dibujarCoordenadas() {
     });
 }
 
-dibujarCoordenadas();
 
 function formatearTiempo(segundos) {
     const m = Math.floor(segundos / 60);
@@ -713,24 +656,6 @@ function actualizarVistaReloj() {
         .classList.toggle("activo", turno === "negro");
 }
 
-function estadoInicial() {
-    return {
-        tablero: [/* tu tablero */],
-        turno: "b",
-        historial: [],
-        tiempoBlanco: 10*60, // segundos
-        tiempoNegro: 10*60
-    };
-}
-
-io.emit("fin", { ganador });
-
-
-socket.on("reset", () => {
-    partida = estadoInicial();
-    io.emit("reset");
-    iniciarReloj();
-});
 
 
 socket.on("fin", data => {
@@ -738,12 +663,6 @@ socket.on("fin", data => {
     tablero.style.pointerEvents = "none";
 });
 
-// Al final de script.js
-window.onload = () => {
-    dibujarTablero();
-    dibujarCoordenadas();
-    actualizarVistaReloj();
-};
 // En script.js añadir un botón que haga esto:
 function solicitarReinicio() {
     if(confirm("¿Quieres reiniciar la partida?")) {

@@ -93,10 +93,14 @@ io.on("connection", socket => {
             partida.tablero[to.y][to.x] = pieza;
             partida.tablero[from.y][from.x] = null;
             
+            
             partida.ultimoMovimiento = data;
             partida.turno = partida.turno === "b" ? "n" : "b";
-            partida.historial.push({ ...data, color: socket.color === "b" ? "blanco" : "negro" });
-
+            partida.historial.push({
+            numero: Math.ceil(partida.historial.length / 2) + 1,
+            texto: `${pieza} ${to.x},${to.y}`,
+            color: socket.color === "b" ? "blanco" : "negro"
+            });
             io.emit("estado", partida); 
         } catch (e) {
             console.error("Error procesando movimiento:", e);
