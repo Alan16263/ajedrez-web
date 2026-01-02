@@ -25,14 +25,16 @@ socket.on("estado", data => {
     tiempoBlanco = data.tiempoBlanco;
     tiempoNegro = data.tiempoNegro;
 
-    seleccion = null;
-    movimientosValidos = [];
-    limpiarResaltados();
-
-    dibujarTablero();
-    dibujarHistorial();
+    // ⏱️ SOLO actualizar reloj SIEMPRE
     actualizarVistaReloj();
+
+    // ♟️ SOLO redibujar tablero si hubo movimiento
+    if (ultimoMovimiento) {
+        dibujarTablero();
+        dibujarHistorial();
+    }
 });
+
 socket.on("connect", () => {
     console.log("Conectado al servidor de Render");
     estadoTexto.textContent = "Conectado. Buscando partida...";
@@ -661,12 +663,14 @@ function dibujarCoordenadas() {
 
     // Llenar todos los contenedores de números (izquierda y derecha)
     document.querySelectorAll(".numeros").forEach(contenedor => {
+        contenedor.innerHTML = ""; // 🔥 FALTA ESTO
         numeros.forEach(n => {
             const d = document.createElement("div");
             d.textContent = n;
             contenedor.appendChild(d);
         });
     });
+
 }
 
 
