@@ -25,7 +25,11 @@ socket.on("estado", data => {
     tiempoBlanco = data.tiempoBlanco;
     tiempoNegro = data.tiempoNegro;
 
-    dibujarTablero();        // 🔥 ESTO FALTABA
+    seleccion = null;
+    movimientosValidos = [];
+    limpiarResaltados();
+
+    dibujarTablero();
     dibujarHistorial();
     actualizarVistaReloj();
 });
@@ -75,8 +79,8 @@ let movido = {
 const piezas = {
     "pb": "♙", "pn": "♟",
     "tb": "♖", "tn": "♜",
-    "ab": "♗", "an": "♝",
-    "cb": "♘", "cn": "♞",
+    "cb": "♗", "cn": "♝",
+    "ab": "♘", "an": "♞",
     "rb": "♕", "rn": "♛",
     "kb": "♔", "kn": "♚"
 };
@@ -135,17 +139,29 @@ function manejarClick(e) {
     const pieza = estado[y][x];
 
     if (seleccion) {
+        // Movimiento válido → mover
         if (esMovimientoValido(x, y)) {
             moverPieza(x, y);
-        } else {
-            // Si hace clic en un lugar no válido, DESELECCIONAMOS
-            seleccion = null;
-            movimientosValidos = [];
-            limpiarResaltados();
-            estadoTexto.textContent = "Movimiento cancelado";
+            return;
         }
+
+        // Click en otra pieza del mismo color → cambiar selección
+        if (pieza && pieza.endsWith(turno === "blanco" ? "b" : "n")) {
+            seleccion = { x, y, pieza };
+            limpiarResaltados();
+            resaltarSeleccion(x, y);
+
+            const posibles = obtenerMovimientos(x, y, pieza);
+            movimientosValidos = posibles.filter(m =>
+                movimientoLegal({ x, y }, { x: m.x, y: m.y }, pieza)
+            );
+            resaltarMovimientos();
+        }
+
+        // Click inválido → no hacer nada
         return;
     }
+
 
     // 🔓 NO HAY SELECCIÓN → intentar seleccionar
     if (!pieza) return;
@@ -422,14 +438,29 @@ function enviarMovimientoServidor(origen, destino, pieza) {
 
 
 function dibujarHistorial() {
-    historialDiv.innerHTML = "";
+    const contenedor = document.getElementById("historial");
+    contenedor.innerHTML = ""; // 🔴 IMPORTANTE
 
-    movimientos.forEach((mov, i) => {
-        const div = document.createElement("div");
-        div.textContent = `${i + 1}. ${coordAJedrez(mov.from.x, mov.from.y)} → ${coordAJedrez(mov.to.x, mov.to.y)}`;
-        historialDiv.appendChild(div);
+    movimientos.forEach((mov, index) => {
+        const fila = document.createElement("div");
+        fila.classList.add("movimiento");
+
+        const numero = Math.floor(index / 2) + 1;
+        const color = mov.color === "blanco" ? "♙" : "♟";
+
+        fila.textContent = `${numero}. ${color} ${formatearMovimiento(mov)}`;
+        contenedor.appendChild(fila);
     });
 }
+function formatearMovimiento(mov) {
+    const letras = "abcdefgh";
+
+    const desde = letras[mov.from.x] + (8 - mov.from.y);
+    const hacia = letras[mov.to.x] + (8 - mov.to.y);
+
+    return `${desde} → ${hacia}`;
+}
+
 
 function coordAJedrez(x, y) {
     const letras = ["a","b","c","d","e","f","g","h"];
