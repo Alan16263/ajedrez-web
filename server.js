@@ -97,9 +97,10 @@ io.on("connection", socket => {
             partida.ultimoMovimiento = data;
             partida.turno = partida.turno === "b" ? "n" : "b";
             partida.historial.push({
-            numero: Math.ceil(partida.historial.length / 2) + 1,
-            texto: `${pieza} ${to.x},${to.y}`,
-            color: socket.color === "b" ? "blanco" : "negro"
+                from,
+                to,
+                pieza,
+                color: socket.color === "b" ? "blanco" : "negro"
             });
             io.emit("estado", partida); 
         } catch (e) {

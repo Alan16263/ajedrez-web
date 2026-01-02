@@ -21,20 +21,26 @@ socket.on("estado", data => {
     turno = data.turno === "b" ? "blanco" : "negro";
     ultimoMovimiento = data.ultimoMovimiento;
 
-    movimientos = data.historial; 
     tiempoBlanco = data.tiempoBlanco;
     tiempoNegro = data.tiempoNegro;
 
-    // ⏱️ SOLO actualizar reloj SIEMPRE
+    // ⏱️ SIEMPRE actualizar reloj
     actualizarVistaReloj();
 
-    // ♟️ SOLO redibujar tablero si hubo movimiento
-    if (ultimoMovimiento) {
+    // ♟️ SOLO si hubo movimiento real
+    if (data.historial.length !== historialAnterior) {
+        movimientos = data.historial;
+        historialAnterior = data.historial.length;
+
         dibujarTablero();
         dibujarHistorial();
+
+        // limpiar selección SOLO tras mover
+        seleccion = null;
+        movimientosValidos = [];
+        limpiarResaltados();
     }
 });
-
 socket.on("connect", () => {
     console.log("Conectado al servidor de Render");
     estadoTexto.textContent = "Conectado. Buscando partida...";
